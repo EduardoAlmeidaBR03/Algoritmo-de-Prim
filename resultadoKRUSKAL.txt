@@ -1,0 +1,14 @@
+
+=================================
+        GRAFO ORIGINAL          
+=================================
+Número de arestas: 38781
+Peso total das arestas: 4737854
+
+
+=================================
+    ÁRVORE GERADORA MÍNIMA      
+=================================
+Número de arestas na MST: 278
+Peso total da MST: 3363
+

@@ -1,21 +1,11 @@
-import java.util.Arrays;
+import org.w3c.dom.*;
+import javax.xml.parsers.*;
+import java.io.*;
+import java.util.*;
 
 public class PrimAlgorithm {
     // Número de vértices no grafo
-    private static final int V = 5;
-
-    // Função para encontrar o vértice com o menor peso que ainda não foi incluído na MST
-    private static int minKey(int[] key, boolean[] mstSet) {
-        int min = Integer.MAX_VALUE, minIndex = -1;
-
-        for (int v = 0; v < V; v++) {
-            if (!mstSet[v] && key[v] < min) {
-                min = key[v];
-                minIndex = v;
-            }
-        }
-        return minIndex;
-    }
+    private static int V;
 
     // Função para imprimir todas as arestas e pesos do grafo
     private static void printGraph(int[][] graph) {
@@ -25,12 +15,26 @@ public class PrimAlgorithm {
         System.out.println("Arestas        Peso");
         System.out.println("-------        ----");
 
+        int totalPeso = 0; // Para somar o peso total das arestas
         for (int i = 0; i < V; i++) {
             for (int j = i + 1; j < V; j++) { // Evita duplicar arestas
                 if (graph[i][j] != 0) {
                     System.out.printf(" %d - %d         %2d\n", i, j, graph[i][j]);
+                    totalPeso += graph[i][j]; // Adiciona o peso da aresta ao total
                 }
             }
+        }
+
+        // Escrever no arquivo de texto o número de arestas e o peso total antes do
+        // algoritmo
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter("resultadoPRIM.txt", true))) {
+            writer.write("=================================\n");
+            writer.write("        GRAFO ORIGINAL          \n");
+            writer.write("=================================\n");
+            writer.write("Número de arestas: " + getEdgeCount(graph) + "\n");
+            writer.write("Peso total das arestas: " + totalPeso + "\n\n");
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 
@@ -42,17 +46,39 @@ public class PrimAlgorithm {
         System.out.println("Arestas        Peso");
         System.out.println("-------        ----");
 
+        int totalPesoMST = 0; // Para somar o peso total da MST
         for (int i = 1; i < V; i++) {
             System.out.printf(" %d - %d         %2d\n", parent[i], i, graph[i][parent[i]]);
+            totalPesoMST += graph[i][parent[i]]; // Adiciona o peso da aresta ao total
         }
 
-        System.out.println("\nRepresentação Visual da MST:");
-        for (int i = 1; i < V; i++) {
-            System.out.printf("(%d) --%d--> (%d)\n", parent[i], graph[i][parent[i]], i);
+        // Escrever no arquivo de texto o peso total da MST depois do algoritmo
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter("resultadoPRIM.txt", true))) {
+            writer.write("\n=================================\n");
+            writer.write("    ÁRVORE GERADORA MÍNIMA      \n");
+            writer.write("=================================\n");
+            writer.write("Número de arestas na MST: " + (V - 1) + "\n");
+            writer.write("Peso total da MST: " + totalPesoMST + "\n\n");
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 
-    // Função principal que calcula a MST usando o Algoritmo de Prim
+    // Função para calcular o número de arestas no grafo
+    private static int getEdgeCount(int[][] graph) {
+        int count = 0;
+        for (int i = 0; i < V; i++) {
+            for (int j = i + 1; j < V; j++) {
+                if (graph[i][j] != 0) {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
+    // Função principal que calcula a MST usando o Algoritmo de Prim com fila de
+    // prioridade
     public static void primMST(int[][] graph) {
         // Array para armazenar a MST
         int[] parent = new int[V];
@@ -70,19 +96,35 @@ public class PrimAlgorithm {
         key[0] = 0;
         parent[0] = -1; // O primeiro nó é sempre a raiz
 
-        // Construa a MST com V-1 arestas
-        for (int count = 0; count < V - 1; count++) {
-            // Escolha o vértice de menor peso que ainda não está na MST
-            int u = minKey(key, mstSet);
+        // Utiliza uma fila de prioridade (min-heap) para escolher o vértice com o menor
+        // peso
+        PriorityQueue<int[]> pq = new PriorityQueue<>(Comparator.comparingInt(a -> a[1]));
 
-            // Adicione o vértice escolhido ao conjunto da MST
+        // Adiciona o primeiro vértice à fila de prioridade
+        pq.offer(new int[] { 0, 0 }); // {vértice, peso}
+
+        // Construa a MST com V-1 arestas
+        while (!pq.isEmpty()) {
+            // Remove o vértice de menor peso da fila
+            int[] minNode = pq.poll();
+            int u = minNode[0]; // Vértice escolhido
+
+            // Se o vértice já está na MST, continue
+            if (mstSet[u])
+                continue;
+
+            // Adicione o vértice à MST
             mstSet[u] = true;
 
             // Atualize os valores das chaves e os pais dos vértices adjacentes
             for (int v = 0; v < V; v++) {
                 if (graph[u][v] != 0 && !mstSet[v] && graph[u][v] < key[v]) {
-                    parent[v] = u;
+                    // Atualiza o peso da chave
                     key[v] = graph[u][v];
+                    parent[v] = u;
+
+                    // Adiciona o vértice na fila de prioridade com o novo peso
+                    pq.offer(new int[] { v, key[v] });
                 }
             }
         }
@@ -91,20 +133,66 @@ public class PrimAlgorithm {
         printMST(parent, graph);
     }
 
+    // Função para ler o XML e extrair a matriz de adjacência
+    public static int[][] parseXML(String filePath) throws Exception {
+        File xmlFile = new File(filePath);
+        DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
+        DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
+        Document doc = dBuilder.parse(xmlFile);
+        doc.getDocumentElement().normalize();
+
+        // Obter a lista de vértices
+        NodeList vertexList = doc.getElementsByTagName("vertex");
+        V = vertexList.getLength(); // Número de vértices
+
+        // Inicializa a matriz de adjacência
+        int[][] graph = new int[V][V];
+
+        // Preenche a matriz de adjacência com os custos das arestas
+        for (int i = 0; i < V; i++) {
+            Node vertexNode = vertexList.item(i);
+            if (vertexNode.getNodeType() == Node.ELEMENT_NODE) {
+                Element vertexElement = (Element) vertexNode;
+                NodeList edgeList = vertexElement.getElementsByTagName("edge");
+
+                for (int j = 0; j < edgeList.getLength(); j++) {
+                    Node edgeNode = edgeList.item(j);
+                    if (edgeNode.getNodeType() == Node.ELEMENT_NODE) {
+                        Element edgeElement = (Element) edgeNode;
+
+                        try {
+                            // Verifica se o conteúdo do vértice é válido
+                            int targetVertex = Integer.parseInt(edgeElement.getTextContent()) - 1; // Índice do vértice
+                                                                                                   // (base 0)
+
+                            if (targetVertex >= 0 && targetVertex < V) { // Verifica se o índice é válido
+                                double cost = Double.parseDouble(edgeElement.getAttribute("cost"));
+                                graph[i][targetVertex] = (int) cost; // Preenche a matriz de adjacência
+                            } else {
+                                System.out.println("Índice de vértice inválido: " + targetVertex);
+                            }
+                        } catch (NumberFormatException e) {
+                            System.out.println("Erro ao ler o vértice ou custo: " + edgeElement.getTextContent());
+                        }
+                    }
+                }
+            }
+        }
+        return graph;
+    }
+
     public static void main(String[] args) {
-        // Exemplo de grafo representado como matriz de adjacência
-        int[][] graph = {
-            {0, 2, 0, 6, 0},
-            {2, 0, 3, 8, 5},
-            {0, 3, 0, 0, 7},
-            {6, 8, 0, 0, 9},
-            {0, 5, 7, 9, 0}
-        };
+        try {
+            // Lê o arquivo XML e constrói a matriz de adjacência
+            int[][] graph = parseXML("./a280.xml");
 
-        // Imprima o grafo inicial
-        printGraph(graph);
+            // Imprime o grafo original
+            printGraph(graph);
 
-        // Calcula a MST
-        primMST(graph);
+            // Calcula a MST
+            primMST(graph);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 }
